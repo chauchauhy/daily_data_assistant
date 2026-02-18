@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 
-class RouterDetail(BaseModel):
+class RouterLane(BaseModel):
+    route : str
+    bound : str
     service_type : str
     orig_en : str
     orig_tc : str
@@ -8,13 +10,8 @@ class RouterDetail(BaseModel):
     dest_en : str
     dest_tc : str
     dest_sc : str
-
-class RouterLane(BaseModel):
-    route : str
-    bound : str
-    router_detail: RouterDetail
-
-class KMBRouter(BaseModel):
+    
+class KMBRouterResponse(BaseModel):
     type : str
     version : str
     generated_timestamp : str

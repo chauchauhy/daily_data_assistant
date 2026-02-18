@@ -14,6 +14,7 @@ from .httpx_util import get_global_httpx_util
 
 from models.kmb.stop_eta.kmb_stop_eta import KMBStopETAResponse
 from models.kmb.stop.stop_response import StopListResponse
+from models.kmb.router.route_lane import KMBRouterResponse
 
 logger = logging.getLogger(__name__)
 
@@ -38,26 +39,28 @@ class KMBRouterUtil:
         return self._stop_cache
 
     @staticmethod
-    async def fetch_all_kmb_router() -> dict:
+    async def fetch_all_kmb_router() -> KMBRouterResponse:
         url = EnvLoadUtil.load_env("ALL_KMB_ROUTER_URL")
         httpx_util = get_global_httpx_util()
         response = await httpx_util.get_all(url)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            logger.error(f"Failed to fetch KMB router data. Status code: {response.status_code}")
-            return ""
+        try:
+            return KMBRouterResponse.model_validate(response.json())
+        except Exception:
+            logger.error(f"Failed to parse KMB router data. Status code: {response.status_code}. Loading from file.")
+            return await KMBRouterUtil.load_kmb_router_data_from_file()
 
+        
     @staticmethod
-    async def fetch_kmb_router_by_route_id(route_id: str) -> dict:
-        url = EnvLoadUtil.load_env("ALL_KMB_ROUTER_URL")
-        httpx_util = get_global_httpx_util()
-        response = await httpx_util.get_all(url)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            logger.error(f"Failed to fetch KMB router data for route_id {route_id}. Status code: {response.status_code}")
-            return ""
+    async def load_kmb_router_data_from_file() -> KMBRouterResponse:
+        try:
+            file_path = os.path.normpath(os.path.join(EnvLoadUtil.load_env("BASE_FOLDER"), "res", EnvLoadUtil.load_env("KMB_ROUTE_DATA")))
+            with open(file_path, "r", encoding="utf-8") as f:
+                router_data = KMBRouterResponse(**json.load(f))
+                logger.info(f"Successfully loaded KMB router data from file. Total routes: {len(router_data.data)}")
+                return router_data
+        except Exception as e:
+            logger.error(f"Failed to load KMB router data from file. Error: {str(e)}")
+            return None
         
     @staticmethod
     async def fetch_kmb_eta_stop_by_stop_id(stop_id: str) -> KMBStopETAResponse:
@@ -69,7 +72,7 @@ class KMBRouterUtil:
         response = await httpx_util.get_all(formatted_url)
         eta_response = KMBStopETAResponse(**response.json()) if response.status_code == 200 else None
         return eta_response
-        
+    
     @staticmethod
     async def fetch_kmb_stop() -> StopListResponse:
         url = EnvLoadUtil.load_env("KMB_STOP_URL")
@@ -88,20 +91,19 @@ class KMBRouterUtil:
         util_instance = get_global_kmb_util()
         util_instance.set_stop_cache(stop_list)
 
-
         return stop_list
         
     @staticmethod
     async def load_stop_data_from_file() -> StopListResponse:
-        stop_list: StopListResponse = None
         try:
             file_path = os.path.normpath(os.path.join(EnvLoadUtil.load_env("BASE_FOLDER"), "res", EnvLoadUtil.load_env("KMB_STOP_DATA")))
             with open(file_path, "r", encoding="utf-8") as f:
                 stop_list = StopListResponse(**json.load(f))
                 logger.info(f"Successfully loaded KMB stop data from file. Total stops: {len(stop_list.data)}")
+                return stop_list
         except Exception as e:
             logger.error(f"Failed to load KMB stop data from file. Error: {str(e)}")
-        return stop_list
+            return None
     
     @staticmethod
     async def load_near_stop_with_lat_lon(lat: str, lon: str) -> list:
@@ -125,12 +127,16 @@ class KMBRouterUtil:
         return nearby_stops
     
     @staticmethod
-    async def load_near_stop_with_address(address: str) -> list:
+    def _geocode_address(address: str):
         geolocator = Nominatim(user_agent="kmb_router_util")
         location = geolocator.geocode(address)
         logger.info(f"Geocoding address: {address}")
-        logger.info(f"Geocoding result: {location}")
-        logger.info(f"Geocoding result latitude: {location.latitude if location else 'N/A'}, longitude: {location.longitude if location else 'N/A'}")
+        logger.info(f"Geocoding result: lat={location.latitude if location else 'N/A'}, lon={location.longitude if location else 'N/A'}")
+        return location
+
+    @staticmethod
+    async def load_near_stop_with_address(address: str) -> list:
+        location = KMBRouterUtil._geocode_address(address)
         if location is None:
             logger.error(f"Failed to geocode address: {address}. No location found.")
             return []
@@ -139,11 +145,7 @@ class KMBRouterUtil:
 
     @staticmethod
     async def get_lat_lon_from_address(address: str) -> dict:
-        geolocator = Nominatim(user_agent="kmb_router_util")
-        location = geolocator.geocode(address)
-        logger.info(f"Geocoding address: {address}")
-        logger.info(f"Geocoding result: {location}")
-        logger.info(f"Geocoding result latitude: {location.latitude if location else 'N/A'}, longitude: {location.longitude if location else 'N/A'}")
+        location = KMBRouterUtil._geocode_address(address)
         return {"latitude": location.latitude, "longitude": location.longitude} if location else {"error": "Address not found"}
 
 _GOLBAL_KMB_UTIL_INSTANCE = None
