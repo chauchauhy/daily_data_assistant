@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Union
 
 
 class RainfallData(BaseModel):
@@ -37,12 +37,24 @@ class Humidity(BaseModel):
     data: List[HumidityData]
 
 
+class UVIndexData(BaseModel):
+    place: str
+    value: Optional[float] = None
+    desc: Optional[str] = None
+    message: Optional[str] = None
+
+
+class UVIndex(BaseModel):
+    data: List[UVIndexData]
+    recordDesc: Optional[str] = None
+
+
 class HkORHRREADResponse(BaseModel):
     rainfall: Rainfall
-    warningMessage: str
+    warningMessage: Union[List[str], str] = ""
     icon: List[int]
     iconUpdateTime: str
-    uvindex: str
+    uvindex: Union[UVIndex, str] = ""
     updateTime: str
     temperature: Temperature
     tcmessage: str

@@ -95,7 +95,8 @@ class KMBRouterUtil:
     async def load_stop_data_from_file() -> StopListResponse:
         stop_list: StopListResponse = None
         try:
-            with open(os.path.join(EnvLoadUtil.load_env("BASE_FOLDER"), "res", EnvLoadUtil.load_env("KMB_STOP_DATA")), "r", encoding="utf-8") as f:
+            file_path = os.path.normpath(os.path.join(EnvLoadUtil.load_env("BASE_FOLDER"), "res", EnvLoadUtil.load_env("KMB_STOP_DATA")))
+            with open(file_path, "r", encoding="utf-8") as f:
                 stop_list = StopListResponse(**json.load(f))
                 logger.info(f"Successfully loaded KMB stop data from file. Total stops: {len(stop_list.data)}")
         except Exception as e:
