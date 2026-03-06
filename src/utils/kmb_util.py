@@ -40,7 +40,7 @@ class KMBRouterUtil:
 
     @staticmethod
     async def fetch_all_kmb_router() -> KMBRouterResponse:
-        url = EnvLoadUtil.load_env("ALL_KMB_ROUTER_URL")
+        url = EnvLoadUtil.ALL_KMB_ROUTER_URL
         httpx_util = get_global_httpx_util()
         response = await httpx_util.get_all(url)
         try:
@@ -64,7 +64,7 @@ class KMBRouterUtil:
         
     @staticmethod
     async def fetch_kmb_eta_stop_by_stop_id(stop_id: str) -> KMBStopETAResponse:
-        url = EnvLoadUtil.load_env("KMB_ROUTER_ETA_URL")
+        url = EnvLoadUtil.KMB_ROUTER_ETA_URL
         formatted_url = url.format(stop_id=stop_id)
         logger.info(f"Fetching KMB ETA data for stop_id: {stop_id} using URL: {formatted_url}")
         httpx_util = get_global_httpx_util()
@@ -75,7 +75,7 @@ class KMBRouterUtil:
     
     @staticmethod
     async def fetch_kmb_stop() -> StopListResponse:
-        url = EnvLoadUtil.load_env("KMB_STOP_URL")
+        url = EnvLoadUtil.KMB_STOP_URL
         httpx_util = get_global_httpx_util()
         response = await httpx_util.get_all(url)
         stop_list: StopListResponse = None
@@ -127,12 +127,16 @@ class KMBRouterUtil:
         return nearby_stops
     
     @staticmethod
-    def _geocode_address(address: str):
-        geolocator = Nominatim(user_agent="kmb_router_util")
-        location = geolocator.geocode(address)
-        logger.info(f"Geocoding address: {address}")
-        logger.info(f"Geocoding result: lat={location.latitude if location else 'N/A'}, lon={location.longitude if location else 'N/A'}")
-        return location
+    def _geocode_address(address: str) -> Nominatim | None:
+        try:
+            geolocator = Nominatim(user_agent="daily_data_assistant", timeout=10)
+            logger.info(f"Geocoding address: {address}")
+            location = geolocator.geocode(address, timeout=10)
+            logger.info(f"Geocoding result: lat={location.latitude if location else 'N/A'}, lon={location.longitude if location else 'N/A'}")
+            return location
+        except Exception as e:
+            logger.error(f"Geocoding failed for '{address}': {str(e)}")
+            return None
 
     @staticmethod
     async def load_near_stop_with_address(address: str) -> list:

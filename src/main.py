@@ -19,4 +19,5 @@ app = FastAPI()
 app.include_router(app_router, prefix="/router", tags=["kmb_router"])
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host=EnvLoadUtil.load_env("APPLICATION_SERVER_HOST"), port=int(EnvLoadUtil.load_env("APPLICATION_SERVER_PORT")), reload=True)
+    uvicorn.run("main:app", host=EnvLoadUtil.load_env("APPLICATION_SERVER_HOST", "127.0.0.1"), 
+                port=int(EnvLoadUtil.load_env("APPLICATION_SERVER_PORT", 8000)), reload=True)

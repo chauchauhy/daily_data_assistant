@@ -1,4 +1,5 @@
 # pylint: disable=W0603,E0402,W1203
+import asyncio
 import logging 
 from haversine import haversine, Unit
 
@@ -9,7 +10,6 @@ from models.hko.data_type_enum import DataTypeEnum
 from models.hko.flw.hko_flw_response import HkoFLWResponse
 from models.hko.rhrread.hko_rhrread_response import HkORHRREADResponse
 from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class HKORouterUtil:
 
     @staticmethod
     async def fetch_hko_flw_data(lang: str = "tc") -> HkoFLWResponse:
-        url = EnvLoadUtil.load_env("HKO_WEATHER_URL")
+        url = EnvLoadUtil.HKO_WEATHER_URL
         formatted_url = url.format(data_type=DataTypeEnum.FLW.value, lang=lang)
         httpx_util = get_global_httpx_util()
         response = await httpx_util.get_all(formatted_url)
@@ -33,7 +33,7 @@ class HKORouterUtil:
 
     @staticmethod
     async def fetch_rhrread_data(lang: str = "tc") -> HkORHRREADResponse:
-        url = EnvLoadUtil.load_env("HKO_WEATHER_URL")
+        url = EnvLoadUtil.HKO_WEATHER_URL
         formatted_url = url.format(data_type=DataTypeEnum.RHRREAD.value, lang=lang)
         httpx_util = get_global_httpx_util()
         response = await httpx_util.get_all(formatted_url)
@@ -45,7 +45,7 @@ class HKORouterUtil:
 
     @staticmethod
     async def fetch_hk_weather_data(data_type: DataTypeEnum = DataTypeEnum.FLW, lang: str = "tc") -> dict:
-        url = EnvLoadUtil.load_env("HKO_WEATHER_URL")
+        url = EnvLoadUtil.HKO_WEATHER_URL
         formatted_url = url.format(data_type=data_type.value, lang=lang)
         httpx_util = get_global_httpx_util()
         response = await httpx_util.get_all(formatted_url)
@@ -76,7 +76,7 @@ class HKORouterUtil:
             else:
                 logger.warning(f"Could not geocode place: {place_name}")
                 return None
-        except (GeocoderTimedOut, GeocoderServiceError) as e:
+        except Exception as e:
             logger.error(f"Geocoding error for '{place_name}': {str(e)}")
             return None
 
@@ -105,6 +105,9 @@ class HKORouterUtil:
         stations_with_coords = []
         
         for temp_data in rhrread_data.temperature.data:
+            cache_key = f"{temp_data.place}, Hong Kong"
+            if cache_key not in self.place_coordinates_cache:
+                await asyncio.sleep(1.1)
             coords = self._geocode_place(temp_data.place)
             if coords:
                 stations_with_coords.append({
@@ -121,16 +124,15 @@ class HKORouterUtil:
         
         logger.info(f"Successfully geocoded {len(stations_with_coords)} stations")
         
-        # Step 3: Geocode input address
-        logger.info(f"Geocoding user address: {address}")
-        user_coords = self._geocode_place(address, region="Hong Kong")
-        
-        if not user_coords:
-            logger.error(f"Could not geocode user address: {address}")
-            return {"error": f"Could not geocode address: {address}"}
-        
-        logger.info(f"User address geocoded to: {user_coords}")
-        
+        if user_coords:
+            logger.info(f"Using pre-computed coordinates for '{address}': {user_coords}")
+        else:
+            logger.info(f"Geocoding user address: {address}")
+            user_coords = self._geocode_place(address, region="Hong Kong")
+            if not user_coords:
+                logger.error(f"Could not geocode user address: {address}")
+                return {"error": f"Could not geocode address: {address}"}
+            logger.info(f"User address geocoded to: {user_coords}")
         # Step 4: Haversine
         logger.info("Calculating distances to all weather stations...")
         for station in stations_with_coords:
